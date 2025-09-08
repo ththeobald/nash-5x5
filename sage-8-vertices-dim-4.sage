@@ -31,7 +31,7 @@ from sage.graphs.independent_sets import IndependentSets
 from fractions import Fraction
 
 # We consider simplicial 4-polytopes with 8 vertices which are dual
-# to simple 4-polytopes with 9 facets
+# to simple 4-polytopes with 8 facets
 ndim = 4 
 nvertices = 8  
 pvertex = []
