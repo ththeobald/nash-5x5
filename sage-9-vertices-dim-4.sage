@@ -1,0 +1,138 @@
+
+# The stable-set bound for simple 4-polytopes with 9 facets:
+
+#  This file provides the SageMath code which produces the data for 
+#  the article: 
+#  Constantin Ickstadt, Thorsten Theobald and Bernhard von Stengel:
+#  A Stable-Set Bound and Maximal Numbers of Nash Equilibria in
+#  Bimatrix Games,
+#  arXiv:2411.12385 
+
+# The program uses the data on the combinatorial types of polytopes
+# which was created by M. Firsching (Realizability and inscribability 
+# for simplicial polytopes via nonlinear optimization, Math. Program.,
+# Ser. A, vol. 166, pages 273-295 (2017),
+# see file
+#   polytopalsimplicialspheres9_4.txt
+# on
+#  https://ftp.imp.fu-berlin.de/pub/moritz/inscribe/neighborly/
+# The numbering of the polytopes in that file is not consecutive
+# and refers to some larger subset of underlying oriented matroids.
+# For reasons of consistent data formats, the numbering 
+# was changed to an integer value in each line. That is, the 
+# first line in the file
+#   polytopalsimplicialspheres9_4.txt
+# must start with
+# 1:  [[-26085574656/203117925673,
+# rather than with
+# i1:  [[-26085574656/203117925673,
+
+# The code was run under SageMath 9.2.
+
+from sage.all import * # to run in Python3
+from sage.graphs.independent_sets import IndependentSets
+from fractions import Fraction
+
+# We consider simplicial 4-polytopes with 9 vertices which are dual
+# to simple 4-polytopes with 9 facets
+ndim = 4 
+nvertices = 9  
+pvertex = []
+nfacets1 = 0
+nfacets2 = 0
+ntrials = 1142 # number of polytopes in file
+myoutput = []
+
+import re # for regular expression
+
+# data file, each line enhanced by line numbering at the beginning of the line
+with open('polytopalsimplicialspheres9_4-with-numbering.txt', 'r') as f:
+        L = f.readlines()
+L2 = [l.strip() for l in L] # list of coordinates of vertices of the polytopes
+
+# read coordinates of one vertex of the simplicial polytope
+def read_vector(str1):
+	m2 = re.match(r"\[(.*)$", l2)
+	if (m2 is None):
+		return()
+	l3 = m2.group(1)
+	curvec = [];
+	for k in range(ndim):
+                # match rational or integer, assumes no whitespace before number
+		m3 = re.match(r"(-*)(\d+)/(\d+)(. *)(.*)$", l3)
+		if (m3 is not None):
+			l3 = m3.group(5) 
+			bnum = Integer(m3.group(2)) # converts into Sage Integer
+			bdenom = Integer(m3.group(3))
+			if (m3.group(1) == "-"):
+				brat = - bnum / bdenom
+			else:
+				brat = bnum / bdenom
+		else: # match integer
+			m3 = re.match(r"(-*)(\d+)(. *)(.*)$", l3)
+			l3 = m3.group(4) 
+			bnum = Integer(m3.group(2)) # converts into Sage Integer
+			if (m3.group(1) == "-"):
+				brat = - bnum
+			else:
+				brat = bnum
+		curvec.append(brat)
+	pvertex.append(curvec)
+	return(l3)
+
+myoutput = []
+for i in range(ntrials): # run through all polyopes in the list of indices
+	pvertex = []
+	l1 = L2[i]
+	m1 = re.match(r"(\d+):  \[(.*)$", l1)
+	if (not(m1)):
+		print("Error. Line format not appropriate.")
+		print(l1)
+	if m1:
+		l2 = m1.group(2)
+		for j in range(nvertices):
+			l3 = read_vector(l2)
+			if (l3 is not None):
+				m3 = re.match(r"(. *)(.*)$", l3)
+				l2 = m3.group(2) 
+		P1 = Polyhedron(vertices = pvertex) # P1 is a simplicial polytope
+		nfacets1 = len(P1.Hrepresentation())
+
+		P1c = P1.combinatorial_polyhedron()
+		P1d = P1c.dual()
+
+		gr = P1d.vertex_graph(); # edge graph of the simple polytope
+		lis = gr.independent_set(); # returns a largest stable set
+		maxstablesize = len(lis);
+		singlestablebound = 2*maxstablesize;
+
+		# determine stable set bound via an integer linear program 
+		n = nfacets1;
+		gr.relabel(srange(0,n)) #necessary, otherwise for loop won't accept vertices
+		p = MixedIntegerLinearProgram(maximization=True, solver = "GLPK")
+		x = p.new_variable(integer=True, nonnegative=True)
+		p.set_objective(p.sum(x[h0] for h0 in srange(0,2*n)))
+		for i3 in gr.vertices():
+			p.add_constraint(x[i3]+x[n+i3] <= 1)
+			for j3 in gr.neighbors(i3):
+				p.add_constraint(x[i3]+x[j3] <= 1)
+				p.add_constraint(x[n+i3]+x[n+j3] <= 1)
+		p.add_constraint(p.sum(x[h1] for h1 in srange(0,n))== p.sum(x[h2] for h2 in srange(n,2*n)))
+		mysol = p.solve()
+		if (abs(mysol-round(mysol)) > 0.01):
+			print("Error. Solution of integer program not an integer.")
+		stablebound = int(mysol+0.01)
+
+		# count the number of facets which are 3-cubes        
+		myfaces1 = P1d.facets(); 
+		nocube = 0;
+		for fa1 in list(myfaces1):
+			vg = gr.subgraph(vertices = list(fa1));
+			if (vg.is_isomorphic(graphs.CubeGraph(3))):
+				nocube = nocube + 1;
+
+		print("Index in file: ", m1.group(1), "Number of vertices: ", nfacets1,  ", single stable bound: ", singlestablebound, ", stable bound: ", stablebound, "Number of cubes: ", nocube);
+		print("Outputline1: %4d %2d %2d %2d %2d" %(i, nfacets1, singlestablebound, stablebound, nocube));
+
+print("\n\n End of output of all simplicial types. \n \n");
+
